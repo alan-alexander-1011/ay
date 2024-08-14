@@ -7,3 +7,5 @@
 >this program is more barebones and worse than yay, but it works.
 
 That's it, i made this for fun, the first version is made in 5 hours.
+
+Install it by pulling this github repo. and you can export to path in .bashrc
