@@ -2,6 +2,7 @@ from modules import *
 
 command:str = sys.argv[1]
 args:list[str] = sys.argv[2:]
+os.makedirs(os.path.join(os.path.dirname(__file__), "pkgbuilds"),exist_ok=True)
 
 def help():
   print('install / sync : used to install things from AUR and pacman.')
