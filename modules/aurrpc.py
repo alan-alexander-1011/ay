@@ -1,90 +1,111 @@
 import requests
 import subprocess
 import colorama
+from git import Repo
 import os
 import sys
 from . import progbar, parser
+from .fetching import *
 
+#format text and reset it.
 textformat = lambda color, text: color + text + colorama.Fore.RESET
 
-def fetch_package_info(package_name: str):
-  response = requests.get(f'https://aur.archlinux.org/rpc/?v=5&type=info&arg[]={package_name}')
-  return response.json()
 
+#downloading package, and return the pkg path.
 def download_pkgbuild(package_name: str) -> (str | int):
-  pkginfo = fetch_package_info(package_name)
-  if pkginfo['resultcount'] == 0:
-    return 1
-  
-  urlpath: str = pkginfo['results'][0]['URLPath']
-  pkg_url: str = "https://aur.archlinux.org" + urlpath
-  # https://aur.archlinux.org + /cgit/aur.git/snapshot/xxx.tar.gz
 
-  response = requests.get(pkg_url, stream=True)
-  
-  if response.status_code == 200:
-    pkgname = urlpath.split("/")[-1]
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "pkgbuilds", pkgname)
-    os.makedirs(os.path.dirname(path), exist_ok=True)  # Create the directory if it does not exist
-    size = int(response.headers.get('Content-Length', 0))
-    with open(path, 'wb') as f:
-      print(textformat(colorama.Fore.CYAN, "Downloading package build..."))
-      for chunk in response.iter_content(chunk_size=2**14):
-        if chunk:
-          f.write(chunk)
-          if size > 0:
-            progbar.print_progbar(f.tell(), size)
-      print(textformat(colorama.Fore.LIGHTGREEN_EX, "pkgbuild downloaded."))
-    return path
-  else:
-    return response.status_code
+  name_packages = []
+  pkgs = suggest_package(package_name)
 
-def install_pkg(packages: list) -> (str | int):
-  for package_name in packages:
-    pkgname = download_pkgbuild(package_name)
-    if pkgname == 1:
-      print(textformat(colorama.Fore.LIGHTYELLOW_EX, "Package is not in AUR. Installing through pacman..."))
-      a = subprocess.run(['sudo', 'pacman', '-Sy', package_name], shell=True)
-      if a.returncode == 0:
-        return textformat(colorama.Fore.GREEN, "Installed via pacman.")
-      return textformat(colorama.Fore.LIGHTRED_EX, "Package does not exist both in AUR and pacman.")
-    elif pkgname == 500:
-      return textformat(colorama.Fore.LIGHTRED_EX, "AUR server is having problems.")
-    elif isinstance(pkgname, int):
-      return textformat(colorama.Fore.LIGHTRED_EX, f"Unexpected error. Returned: {pkgname}")
+  #if there is multiple pkgs, asks to choose one or multiple pkgs
+  if len(pkgs) > 1:
+    print(textformat(colorama.Fore.LIGHTCYAN_EX, "there are multiple packages to install, please choose one, or multiple (e.g: 1 2 3)"))
+    #print names
+    for i, pkg in enumerate(pkgs, start=1):
+      print(f"{i}. {pkg}")
     
-    # Extracting the tarball
-    print(textformat(colorama.Fore.CYAN, "Extracting package build..."))
-    extraction_dir = os.path.dirname(pkgname)
-    print(f"path extracted targz: {extraction_dir}")
-    subprocess.run(['tar', '-xzf', pkgname, '-C', extraction_dir], check=True)
+    #strip so it doesnt bug out on for e.g: '  1  '
+    opt = input("--> ").strip()
+    if opt == "":
+      return textformat(colorama.Fore.LIGHTRED_EX, "invalid option.")
 
-    current_dir = os.getcwd()
-    os.chdir(os.path.join(extraction_dir,package_name))
-    data = parser.parse_pkgbuild(os.path.join(extraction_dir,package_name,"PKGBUILD"))
-    print(f"===========PACKAGE INFO===========")
-    print(f"Pkgname: {data.get("pkgname", "no name???")}")
-    ks = data.get("pkgrel", "unknown number")
-    print(f"Version: {data.get("pkgver", "unknown version")} ({ks[:-1]+"1-st" if ks[-1] == "1" else ks[:-1]+"2-nd" if ks[-1] == "2" else ks[:-1]+"3-rd" if ks[-1] == "3" else ks+"-th"} release)")
-    print(f"Architecture: {data.get("arch")}")
-    print(f"Dependencies: {data.get('depends', 'unknown or not written in PKGBUILD.')}")
-    print(f"Source: {data.get('source')}")
-    print(f"md5sums: {data.get('md5sums',"no md5 checksum")}")
-    print(f"sha256sums: {data.get('sha256sums',"no sha256 checksum")}")
-    print(f"===================================")
-    
-    # Building the package
-    print(textformat(colorama.Fore.CYAN, "Building package with makepkg..."))
-    try:
-      result = subprocess.run(['makepkg', '-si'], check=True)
-      os.chdir(current_dir)
-      if result.returncode == 0:
-          return textformat(colorama.Fore.GREEN, "Package built and installed successfully.")
+    #check spaces (cause this is space separated)
+    if opt.find(" ") == -1:
+
+      #check if its a digit
+      if opt.isdigit():
+
+        #check if its in the range
+        if int(opt) > 0 and int(opt) <= len(pkgs):
+          #put it in pkgs
+          num = int(opt)
+          name_packages.append(pkgs[num-1])
+
+        #if its not in range
+        else:
+          return textformat(colorama.Fore.LIGHTRED_EX, "invalid option.")
+      
+      #if it isnt a digit
       else:
-          return textformat(colorama.Fore.LIGHTRED_EX, f"makepkg failed with return code: {result.returncode}")
-    except KeyboardInterrupt:
-      return textformat(colorama.Fore.LIGHTRED_EX, "Process interrupted by user.")
-    except subprocess.CalledProcessError:
-      return textformat(colorama.Fore.LIGHTRED_EX, "Error running makepkg.")
+        return textformat(colorama.Fore.LIGHTRED_EX, "option is not a digit.")
+      
+    #if there is space (heres the perpose of the strip above to make sure not bugged out)
+    else:
+      opts = opt.split(" ") #just split space.
+
+      #loop thru options
+      for opt in opts:
+        #check if its a digit, if so, add it to the list of packages.
+        if opt.isdigit():
+          if int(opt) > 0 and int(opt) <= len(pkgs):
+            num = int(opt)
+            name_packages.append(pkgs[num-1])
+          else:
+            return textformat(colorama.Fore.LIGHTRED_EX, "invalid option.")
+        else:
+          return textformat(colorama.Fore.LIGHTRED_EX, "option is not a digit.")
+        
+  #if there is only one
+  elif len(pkgs) == 1:
+    name_packages.append(pkgs[0])
+  
+  #if nothing found
+  else:
+    return textformat(colorama.Fore.LIGHTRED_EX, "no package found.")
+
+  #loop through packages.
+  for package_name in name_packages:
+    #get pkg info.
+    pkginfo = fetch_package_info(package_name)
+    
+    if pkginfo['results'] == []:
+      return textformat(colorama.Fore.LIGHTRED_EX, f"No package named {package_name} found.")
+
+    #take the url and download the package. 
+    urlpath: str = pkginfo['results'][0]['URLPath']
+    pkg_url: str = "https://aur.archlinux.org" + urlpath
+    # https://aur.archlinux.org + /cgit/aur.git/snapshot/xxx.tar.gz
+
+    response = requests.get(pkg_url, stream=True)
+    
+    if response.status_code == 200:
+      #if server respond
+      pkgname = urlpath.split("/")[-1]
+      path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "pkgbuilds", pkgname)
+      os.makedirs(os.path.dirname(path), exist_ok=True)  # Create the directory if it does not exist
+      size = int(response.headers.get('Content-Length', 0))
+      with open(path, 'wb') as f:
+        print(textformat(colorama.Fore.CYAN, "Downloading package build..."))
+        for chunk in response.iter_content(chunk_size=2**14):
+          if chunk:
+            f.write(chunk)
+            if size > 0:
+              progbar.print_progbar(f.tell(), size)
+        print(textformat(colorama.Fore.LIGHTGREEN_EX, "pkgbuild downloaded."))
+      return path
+    else:
+      return response.status_code
+
+
     
 
