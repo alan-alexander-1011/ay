@@ -1,4 +1,3 @@
-"""
 MIT/GU-NNoA-LF License
 
 Copyright (c) 2023-now alan-alexander-1011
@@ -34,13 +33,7 @@ The Distributor of this software is not needed to show the code of the program t
 But the Distributor of this software may needed to give an simple explanation of what the 
 Distributor added/modified to the program.
 And the distributor may give the owner credits.
-"""
 
-#simple.
-from .aurrpc import *
-from .package import *
-from .fetching import *
-import shutil
-import sys
-import platform
-import re
+-----------------------------------------
+Notes after the terms:
+-----------------------------------------
