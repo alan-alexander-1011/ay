@@ -53,7 +53,7 @@ def list_installed_aur_packages() -> list[tuple]:
     
 def list_update_packages() -> list:
   try:
-    subprocess.run(['sudo', 'pacman', '-Sy'], capture_output=True, text=True)
+    subprocess.run(['sudo', 'pacman', '-Sy'], capture_output=True, text=True, shell=True)
     result = subprocess.run(
         ['pacman', '-Quq'],
         capture_output=True, text=True
@@ -64,15 +64,14 @@ def list_update_packages() -> list:
   except subprocess.CalledProcessError:
     return []
     
-def update_aur_pacman():
+def update_aur_pacman(args: list[str]):
   print(textformat(colorama.Fore.LIGHTCYAN_EX,"updating official repo.."))
   listopkgs = list_update_packages()
 
   printformat = [listopkgs[i:i + 3] for i in range(0, len(listopkgs), 3)]
 
-  print(textformat(colorama.Fore.LIGHTYELLOW_EX,"official repo updates:"))
-
   if listopkgs != ['']:
+    print(textformat(colorama.Fore.LIGHTYELLOW_EX,"official repo updates:"))
     for row in printformat:
       print(textformat(colorama.Fore.LIGHTGREEN_EX,"  " + ' '.join(row)))
   else:
@@ -115,7 +114,7 @@ def update_aur_pacman():
           return textformat(colorama.Fore.LIGHTRED_EX, "Option is not a digit.")
       else:
         opts = opt.split(" ")
-        i = 1
+        i = 0
         for opt in opts:
           if opt.isdigit():
             if int(opt) > 0 and int(opt) <= len(aur_updates):
@@ -131,13 +130,17 @@ def update_aur_pacman():
     print(textformat(colorama.Fore.LIGHTGREEN_EX, "  No AUR packages to update."))
   
   if listopkgs != ['']:
-    #update
-    print(textformat(colorama.Fore.LIGHTCYAN_EX, "Updating from official repo"))
-    try:
-      subprocess.run(['sudo', 'pacman', '-Su', '--noconfirm'], check=True)
-      print(textformat(colorama.Fore.GREEN, "Successfully updated official repo."))
-    except subprocess.CalledProcessError:
-      print(textformat(colorama.Fore.LIGHTRED_EX, "Failed to update official repo."))
+    if len(args) > 1:
+      if args[1] == "aur": 
+        pass
+    else:
+      #update
+      print(textformat(colorama.Fore.LIGHTCYAN_EX, "Updating from official repo"))
+      try:
+        subprocess.run(['sudo', 'pacman', '-Su', '--noconfirm'], check=True)
+        print(textformat(colorama.Fore.GREEN, "Successfully updated official repo."))
+      except subprocess.CalledProcessError:
+        print(textformat(colorama.Fore.LIGHTRED_EX, "Failed to update official repo."))
   
   if len(aur_updates)>0:
     print(textformat(colorama.Fore.LIGHTCYAN_EX, "Updating from AUR"))
@@ -145,7 +148,7 @@ def update_aur_pacman():
   
   return textformat(colorama.Fore.LIGHTCYAN_EX,"Command ran successfully")
 
-def install_pkg(packages: list) -> (str | int):
+def install_pkg(packages: list, noValidityCheck:bool = False) -> (str | int):
   if packages == []:
     return textformat(colorama.Fore.LIGHTRED_EX, "No packages in arguments. (main.py install 'all of packages seperated by spaces.')")
 
@@ -194,7 +197,7 @@ def install_pkg(packages: list) -> (str | int):
     # Building the package
     print(textformat(colorama.Fore.CYAN, "Building package with makepkg..."))
     try:
-      result = subprocess.run(['makepkg', '-si'], check=True)
+      result = subprocess.run(['makepkg', '-si', '--skippgpcheck' if noValidityCheck else ''], check=True)
       os.chdir(current_dir)
       if result.returncode == 0:
           if packages != []:

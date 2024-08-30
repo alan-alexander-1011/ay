@@ -40,9 +40,13 @@ from modules import *
 
 textformat = lambda color, text: color + text + colorama.Fore.RESET
 
-if platform.system() == 'Windows':
+if platform.system() in ['Windows', "Darwin"]:
   print("Arch Linux and Arch-based distros only.")
-  exit (-1)
+  exit(-1)
+
+if os.geteuid() == 0:
+  print(textformat(colorama.Fore.LIGHTRED_EX, "no root plss"))
+  exit(-1)
 
 command:str = sys.argv[1]
 args:list[str] = sys.argv[2:]
@@ -50,6 +54,7 @@ os.makedirs(os.path.join(os.path.dirname(__file__), "pkgbuilds"),exist_ok=True)
 
 def help():
   print('install / sync : used to install things from AUR and pacman.')
+  print('install-novalidity : used to install things from AUR. but no validity check')
   print('update / upgrade : used to update all of your packages and your core files.')
   print('remove / uninstall : used to remove packages.')
   print('search / query : used to search pkgs on AUR.')
@@ -59,9 +64,13 @@ if command in ['install', 'sync']:
   ret = install_pkg(args)
   print(ret)
 
+elif command == "install-novalidity":
+  ret = install_pkg(args, True)
+  print(ret)
+
 elif command in ['update', 'upgrade']:
   try:
-    print(update_aur_pacman())
+    print(update_aur_pacman(args))
   except KeyboardInterrupt:
     print(textformat(colorama.Fore.LIGHTRED_EX, "\rUpdate cancelled by user."))
 

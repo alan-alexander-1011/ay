@@ -42,7 +42,7 @@ import colorama
 from git import Repo
 import os
 import sys
-from . import progbar, parser
+from . import progbar
 from .fetching import *
 
 #format text and reset it.

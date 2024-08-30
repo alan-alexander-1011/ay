@@ -41,6 +41,6 @@ from .aurrpc import *
 from .package import *
 from .fetching import *
 import shutil
-import sys
+import sys, os
 import platform
 import re
